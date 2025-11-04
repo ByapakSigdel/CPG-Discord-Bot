@@ -15,11 +15,36 @@ TOKEN = os.getenv("DISCORD_TOKEN")
 intents = discord.Intents.default()
 intents.message_content = True
 
-bot = commands.Bot(command_prefix="/", intents=intents)
+# Use a non-slash text prefix for hybrid commands (slash commands will show under /)
+bot = commands.Bot(command_prefix="!", intents=intents)
+
+# Guard to sync application commands once per process start
+_synced = False
 
 @bot.event
 async def on_ready():
+    global _synced
     print(f"✅ Logged in as {bot.user} (ID: {bot.user.id})")
+    # Debug: show loaded cogs and commands
+    try:
+        print(f"🔧 Loaded cogs: {list(bot.cogs.keys())}")
+        print("🔧 Loaded commands:", ", ".join(sorted(cmd.qualified_name for cmd in bot.commands)))
+    except Exception as e:
+        print(f"(debug) failed to list cogs/commands: {e}")
+    if not _synced:
+        # Optionally fast-sync to a specific guild for immediate availability
+        guild_id = os.getenv("DISCORD_GUILD_ID")
+        try:
+            if guild_id:
+                guild = discord.Object(id=int(guild_id))
+                gsynced = await bot.tree.sync(guild=guild)
+                print(f"⚡ Synced {len(gsynced)} commands to guild {guild_id}.")
+            # Register global application commands so they appear in / suggestions
+            synced = await bot.tree.sync()
+            print(f"🔁 Synced {len(synced)} application commands globally.")
+        except Exception as e:
+            print(f"❌ Failed to sync application commands: {e}")
+        _synced = True
     print("Bot is ready!")
 
 async def load_cogs_from_folder(folder: str = "commands"):
